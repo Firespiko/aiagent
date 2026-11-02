@@ -35,7 +35,8 @@ messages = [
     {"role": "user", "content": args.user_prompt},
 ]
 available_tools = raf + gaf
-total_messages = []
+seen_calls = set()
+
 for _ in range(20):
     response = client.chat.completions.create(
         model=os.environ["LOCAL_LLM_MODEL"],
@@ -44,17 +45,34 @@ for _ in range(20):
     )
 
     internal_message = response.choices[0].message
-    total_messages.append(internal_message)
+    messages.append(internal_message)
 
     if internal_message.tool_calls:
         for tool_call in internal_message.tool_calls:
+            call_key = (
+                tool_call.function.name,
+                tool_call.function.arguments,
+            )
+
+            # if call_key in seen_calls:
+            #     print("Agent is repeating a tool call. Stopping.")
+            #     messages.append({
+            #     "role": "user",
+            #     "content": (
+            #         "You repeated a tool call. Use the results already in the conversation "
+            #         "to take a different action or provide your final answer."
+            #     ),
+            #     })
+            #     continue
+
+            # seen_calls.add(call_key)
             result_message = call_function(
                 tool_call=tool_call,
                 verbose=args.verbose,
             )
             if not result_message["content"]:
                 raise Exception("Tool call returned empty content")
-            total_messages.append(result_message)
+            messages.append(result_message)
 
             if args.verbose:
                 print(f"-> {result_message['content']}")
